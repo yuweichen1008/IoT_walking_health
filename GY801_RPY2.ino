@@ -11,7 +11,6 @@
 #define MA 8
 #define ceiling 1200
 
-char cmd;
 bool at = 0;
 
 SoftwareSerial BT(8, 9); // Rx, Tx
@@ -47,10 +46,10 @@ float Kalman(int8_t n, int16_t Acc, int16_t Accz, int16_t Gyro) {
   static float M0[2], M1[2];
   static float dT = 0.034;
   float g0 = Accz + gb;
- 
+
   float Y = atan2(Acc, g0) ;
   angle[n] += (Gyro- bias[n]) * G_scale  * dT;
-  
+
   M0[n] = 1 + (Qa + dT) * dT;
   M1[n] = -dT;
   K[n] = M0[n] / (M0[n] + Qa);
@@ -61,81 +60,71 @@ float Kalman(int8_t n, int16_t Acc, int16_t Accz, int16_t Gyro) {
   M0[n] *= 1 - K[n];  
   return angle[n] * 180 / 3.1415926F;
 }
-
+/*
 inline void BTsend(float ang){
   char buf[32];
   sprintf(buf,"%ld,",(long int)(ang*1000));
   BT.write(buf);  
 }
-
+*/
 int step = 0;
 float dist = 0;
 
 int step_counter(int16_t ay,int16_t az , int16_t gx){
-    static int state = 0;
-    static float v=0,d=0;
-    static unsigned long long int t = 0;
-//    static unsigned long long int t1 = 0,t2=0,t3=0;
-    static unsigned long long int tl = 0;
-    static int zero_cnt = 0;
-    static bool flag = 0;
+  static int state = 0;
+  static float v=0,d=0;
+  static unsigned long long int t = 0;
+  static unsigned long long int tl = 0;
+  static int zero_cnt = 0;
+  static bool flag = 0;
 
-    if(state == 0) flag = 0;
+  if(state == 0) flag = 0;
 
-    if(state!=0) ++zero_cnt;
+  if(state!=0) ++zero_cnt;
 
-    if(zero_cnt > 30) {
-      state = 0;
-      zero_cnt = 0;
-    }
-    
-    if(gx >80 && state == 0){ 
-        tl = t;
-        state = 1;
-        zero_cnt = 0;
-        
-    }
-    
-    if(gx <-80 && state == 1 && t-tl<30) {
-        tl = t;
-        state = 2;
-        zero_cnt = 0;
+  if(zero_cnt > 30) {
+    state = 0;
+    zero_cnt = 0;
+  }
+  
+  if(gx >80 && state == 0){ 
+    tl = t;
+    state = 1;
+    zero_cnt = 0;
+      
+  }
+  
+  if(gx <-80 && state == 1 && t-tl<30) {
+    tl = t;
+    state = 2;
+    zero_cnt = 0;
 
-    }
-    
-    if(gx >20 && state == 2 && t-tl<30){ 
-        tl = t;
-        state = 3;
-        zero_cnt = 0;
-    }
-    
-    if(  abs(gx) < 10 && state == 3 && abs(pitch) < 5){ 
-        //++step;
-        state = 0;
-        flag = 1;
-        dist+=abs(d*25);
-    }
-        
-    if(state==2 || state==3){
-        v=v+dT*(ay*cos(pitch))/255*9.81 ;
-        d=d+dT*v;
-    }  
-  ++t;  
-
-//Serial.print(state);
-//Serial.print(',');
-//Serial.print(flag);
-//Serial.print(',');
-//Serial.print(d*25);
-//Serial.print(',');
- 
-   return flag;
+  }
+  
+  if(gx >20 && state == 2 && t-tl<30){ 
+    tl = t;
+    state = 3;
+    zero_cnt = 0;
+  }
+  
+  if(  abs(gx) < 10 && state == 3 && abs(pitch) < 5){ 
+    state = 0;
+    flag = 1;
+    dist+=abs(d*25);
+  }
+      
+  if(state==2 || state==3){
+    v=v+dT*(ay*cos(pitch))/255*9.81 ;
+    d=d+dT*v;
+  }
+  ++t;
+  return flag;
 }
 
 void loop(){
 
   static float ax,ay,az;
-//  static float gx,gy,gz;
+  // static float gx,gy,gz; //gyroscope data
   static float mx,my,mz;
   static int16_t iter = 0;
 
@@ -152,11 +141,10 @@ void loop(){
   if(abs(raw.m_y) <182) my = -raw.m_y;
   if(abs(raw.m_z) <182) mz = raw.m_z;
 
-//  const float lpf = 1;
-
   static int acc_array[3][MA]={0};
   float acc_avg[3]={0};
   
+  // average and filtering
   acc_array[0][iter] = ax;
   acc_array[1][iter] = ay;
   acc_array[2][iter] = az;
@@ -172,63 +160,20 @@ void loop(){
 
   pitch = Kalman(0, acc_avg[1], acc_avg[2], raw.g_x ) ;
 
-    
-//  Serial.print(pitch);
-//  Serial.print(',');
-
   roll = Kalman(1, acc_avg[0], acc_avg[2], raw.g_y );
-  
-//  Serial.print(roll);
-//  Serial.print(',');
 
   float Ny = my/cos(angle[0]);
   float Nx = mx/cos(angle[1]);
   float yaw = atan2(Ny,Nx)*180/3.1415926F;
 
-//  Serial.print(Nx);
-//  Serial.print(',');
-//  Serial.print(Ny);
-//  Serial.print(',');
-  
-//  Serial.print( atan2(Ny,Nx)*180/3.1415926F   );
-//  Serial.print(',');
-
-//  Serial.print(raw.g_x*G_scale);
-//  Serial.print(',');
-
-//  Serial.print(ay);
-//  Serial.print(',');
-//  Serial.print(az);
-//  Serial.print(',');
-  
-//  Serial.print("\r\n");
-
   step += step_counter(ay,az,raw.g_x/100);
-//  Serial.print(step);
-//  Serial.print(',');
-//  Serial.print(raw.g_x/100);
-//  Serial.print(dist);    
-//  Serial.print('\n');
-
-//  char buf[32];
-//  sprintf(buf,"%d,",step );
-
 
   char buf[64];
   memset(buf,0,64);
 
   sprintf(buf,"|%ld,%ld,%ld,%d,%ld\n",(long int)(pitch*1000),(long int)(roll*1000),(long int)(yaw*1000),step,(long int)(dist*1000));
-
   Serial.print(buf);
-/*  
-  BTsend(pitch);
-  BTsend(roll);
-  BTsend(yaw);
-  BT.write(buf);
-  BTsend(dist);*/
 
-   
-//  BT.write("\r\n");
   BT.write(buf);
   BT.flush();
   delay(65);
